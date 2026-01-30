@@ -38,7 +38,7 @@ fill this field export HF_TOKEN with the value and try to run this command too: 
 3. I also tried with rocm  MI300x but that is also giving me an error.
 
 
-
+-----
 
 Using vllm software I tried this commands:
 1.apt install -y python3-full python3-venv  
@@ -48,17 +48,17 @@ source /opt/vllm/bin/activate
  4.  pip install torch==2.6.0+rocm6.1 \
   torchvision==0.21.0+rocm6.1 \
   torchaudio==2.6.0+rocm6.1 \
-  --index-url https://download.pytorch.org/whl/rocm6.1
-  5.hf auth login 
-  6. export HIP_VISIBLE_DEVICES=0
-export HSA_OVERRIDE_GFX_VERSION=9.4.0
-export TORCH_USE_HIP_DSA=1
-export VLLM_USE_ROCM=1
-7. python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Llama-2-7b-hf \
-  --dtype float16 \
-  --max-model-len 4096 \
-  --gpu-memory-utilization 0.90 \
-  --enforce-eager \
-  --port 8000
-  I am still getting an error I feel vllm.entrypoints.openai.api_server  is a problem 
+  --index-url https://download.pytorch.org/whl/rocm6.1  
+  5.hf auth login  
+  6. export HIP_VISIBLE_DEVICES=0  
+export HSA_OVERRIDE_GFX_VERSION=9.4.0  
+export TORCH_USE_HIP_DSA=1  
+export VLLM_USE_ROCM=1  
+7. python -m vllm.entrypoints.openai.api_server \  
+  --model meta-llama/Llama-2-7b-hf \  
+  --dtype float16 \   
+  --max-model-len 4096 \  
+  --gpu-memory-utilization 0.90 \  
+  --enforce-eager \  
+  --port 8000  
+  I am still getting an error I feel vllm.entrypoints.openai.api_server  is a problem   
