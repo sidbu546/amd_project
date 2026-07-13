@@ -6,7 +6,7 @@
 (even if no match is confirmed, we can sort that out later)."
 
 **Why this is the most serious defect:** This is not a quality issue, it is a
-legal one. Telling a donor their gift will be doubled when no match exists is a
+legal one. Telling a donor their gift will be matched when no match exists is a
 material misrepresentation in a charitable solicitation. State charities
 regulators and the AFP Code of Ethical Standards both treat this as
 misrepresentation. It is also the kind of defect automation makes catastrophic:
