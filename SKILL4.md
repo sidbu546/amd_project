@@ -41,7 +41,7 @@ Letters are written against one of four campaign types, which set the messaging
 angle: Emergency Appeal, Annual Fund, Capital Campaign and Event Fundraiser.
 
 The skill produces one HTML letter per donor, a summary table of every ask for
-staff approval, and an exceptions list of records that need a human.
+staff approval, and an exceptions list of records that need a human review.
 
 ## Non-negotiable integrity rules
 
