@@ -208,8 +208,7 @@ model is instructed to reproduce it verbatim.
 - Lapsed: `We've missed you, [First Name].`
 
 **Tone by tier**: Platinum formal and personal. Gold warm and professional.
-Silver friendly. Bronze casual and encouraging. Lapsed warm and welcoming,
-never guilt-inducing.
+Silver friendly. Bronze casual and encouraging. Lapsed apologetic tone.
 
 **Campaign paragraph**, 2 to 3 sentences, in ASPCA voice: concrete, animal
 focused, hopeful rather than graphic.
