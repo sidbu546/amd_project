@@ -1,13 +1,5 @@
 # charity-donor-outreach: Assessment and Improvements
 
-An assessment of the drafted `charity-donor-outreach` skill against the brief:
-consistent, reliable output that scales to a growing donor list. Each section
-gives what the original said, why it fails, what changed, and the impact. The
-rewritten skill is in `SKILL.md`. Section 9 covers the scaling study behind the
-architecture.
-
----
-
 ## 1. The skill instructed the agent to lie about matching gifts
 
 **Original:** Under Emergency Appeal, "Tell the donor their gift will be matched
