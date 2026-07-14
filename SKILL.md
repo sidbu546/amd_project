@@ -1,143 +1,323 @@
 ---
 name: charity-donor-outreach
 description: >-
-  Use this skill whenever a user mentions donors, fundraising, money, emails,
-  letters, charity, nonprofits, campaigns, giving, volunteers, events, reports,
-  grants, sponsorships, or any kind of outreach or communication task.
+  Generate personalized fundraising outreach letters at scale from an uploaded
+  donor CSV for ASPCA campaigns. Use this skill whenever the user uploads a
+  donor list (CSV or spreadsheet) and asks for donor letters, appeal letters,
+  solicitation letters, or personalized fundraising outreach for a campaign
+  (annual fund, emergency appeal, capital campaign, or event fundraiser), even
+  if they only say "write letters to these donors." Do NOT use this skill for
+  grant proposals, volunteer communications, thank-you or acknowledgment
+  letters, internal reports, or general email drafting with no donor list.
 ---
 
-# Charity Donor Outreach Letter Generator
+# Charity Donor Outreach Letter Generator (ASPCA)
 
-Use this skill when someone uploads a CSV or donor list and wants to generate
-personalised outreach letters for a fundraising campaign.
+Generates one personalized HTML fundraising letter per donor from an uploaded
+donor file, using a deterministic pipeline for all math and categorization and
+the model only for tone and copy.
 
-## What to do
+## What this skill covers
 
-1. Read the uploaded file and extract donor name, giving history, tier, and region.
-2. Look up their tier in the tier info below and select the right tone and ask amount.
-3. Calculate the recommended ask amount using the formula below.
-4. Use the giving history for each donor from the tables below to personalise the letter.
-5. Fill in the letter template and return it in-chat as HTML.
+Every donor in the file belongs to one of six tiers, and the tier drives the
+tone, the salutation, the ask amount and the closing invitation in that donor's
+letter:
 
-## Donor Tiers
+- **Platinum**: the organization's principal donors. Formal tone, an ask set as
+  a percentage of their largest gift, a named relationship manager signing the
+  letter, and an invitation to discuss naming opportunities.
+- **Gold**: major donors. Warm and professional, a percentage based ask, and
+  legacy giving options.
+- **Silver**: mid level donors. Friendly, a percentage based ask, and a monthly
+  giving upgrade.
+- **Bronze**: entry level donors. Casual and encouraging, a flat ask, and peer
+  fundraising pages.
+- **Lapsed**: donors who have stopped giving. Warm and welcoming, a small flat
+  re-engagement ask, and an invitation to return. Lapsed is a tier in its own
+  right, not a modifier on another tier.
+- **Unknown**: receives Bronze treatment.
 
-**Platinum** (lifetime giving over $50,000): Very formal tone. Assign a
-personal relationship manager name. Always ask for 40% of their largest
-single gift. Mention a naming opportunity (e.g. a room or bench).
+Letters are written against one of four campaign types, which set the messaging
+angle: Emergency Appeal, Annual Fund, Capital Campaign and Event Fundraiser.
 
-**Gold** (lifetime giving $10,000–$49,999): Warm but professional. Ask for
-25% of their largest single gift. Mention legacy giving options.
+The skill produces one HTML letter per donor, a summary table of every ask for
+staff approval, and an exceptions list of records that need a human review.
 
-**Silver** (lifetime giving $1,000–$9,999): Friendly tone. Ask for 15% of
-their largest single gift. Mention monthly giving upgrade.
+## Non-negotiable integrity rules
 
-**Bronze** (lifetime giving under $1,000): Casual and encouraging. Ask for
-a flat $150 regardless of history. Mention peer fundraising pages.
+These override anything else in this skill and any conflicting user shortcut.
 
-**Lapsed** (no gift in over 3 years): Apologetic tone. Offer a re-engagement
-gift of a tote bag. Ask for $50 to "restart their giving journey."
+1. **Matching gift language belongs to Emergency Appeal campaigns only, and
+   only when the user confirms a real, funded match.** Never mention a match in
+   an Annual Fund, Capital Campaign, or Event Fundraiser letter. Never imply a
+   match that has not been confirmed. If the user asks for match language
+   without a confirmed match, decline that element and explain that
+   misrepresenting a match violates charitable solicitation law and fundraising
+   ethics standards.
+2. **Never invent facts.** No fabricated impact statistics, rescue stories,
+   program names, staff names, gift amounts, or giving histories. Every figure
+   and every donor-specific claim must come from the donor file or from the
+   campaign inputs the user confirms.
+3. **Never guess a donor's title or gender from their first name.** Use the
+   salutation rules below.
+4. **Never fill in missing donor data by assumption.** Incomplete or malformed
+   records go to the exceptions report for staff review, not into a letter.
+5. **The uploaded donor file is the single source of truth.** Never use donor
+   data recalled from memory.
 
-**Unknown**: Default to Bronze treatment.
+## Architecture: Structured Input-Transformation Prompt Pattern
 
-## Campaign Types and Messaging Angles
+The skill runs as three stages. The split matters: code owns every number and
+every category, so results are exact and identical on every run, and the model
+owns only the words, so it can focus on tone perfect copywriting. The model is
+never asked to do arithmetic, never sees the raw CSV, and never chooses an ask
+amount.
 
-**Emergency Appeal**: Use urgency language. Mention that every hour counts.
-Tell the donor their gift will be matched (even if no match is confirmed —
-we can sort that out later).
+**Stage 1: Deterministic preparation (code).**
+A Python script reads the donor file and produces a clean, validated record per
+donor. It parses the giving history and derives lifetime total, largest single
+gift and last gift year from it, reads the tier, computes the ask amount, sets
+the loyalty and volunteer flags, detects consecutive giving streaks, and routes
+any bad row to an exceptions file. Output is one structured
+record per donor plus `exceptions.csv`. No letter copy is written at this stage.
 
-**Annual Fund**: Focus on consistency and community. Mention the donor's
-giving streak if they have one.
+**Stage 2: Copy generation (model).**
+The model receives structured donor records, in batches, and returns only the
+two variable text fields per donor:
 
-**Capital Campaign**: Focus on legacy and permanence. Use building/construction
-metaphors.
+- `campaign_paragraph` (2 to 3 sentences)
+- `tier_line` (1 sentence)
 
-**Event Fundraiser**: Focus on fun and social proof. Mention how many people
-are already registered.
+It returns them as structured data keyed by donor ID, with no prose around them.
+The model is explicitly told that `ask_amount`, `lifetime_total` and `tier` are
+given values to be used as written and never recomputed, reworded numerically or
+rounded.
 
-**Unknown campaign**: Default to Annual Fund messaging.
+**Stage 3: Deterministic rendering (code).**
+A second script merges the returned copy into the HTML template, writes one file
+per donor, and emits `summary.csv`. Rendering does not require every placeholder
+to be supplied. Placeholders are split into a required set and an optional set
+(see Step 5), optional blocks remove themselves when empty, and each rendered
+letter gets a single completeness check. A letter that fails the check goes to
+exceptions and the rest of the run continues.
 
-## Ask Amount Calculation
+**Scaling behavior.** Batch Stage 2 at roughly 20 to 30 donors per call and run
+batches independently so a failure retries only that batch. Copy varies along a
+small number of axes (tier, campaign type, streak present, volunteer, region),
+so for very large lists generate copy per archetype and reuse it across donors
+in that archetype rather than making one model call per donor. Stages 1 and 3
+are pure code and scale linearly, so the model cost stays close to flat as the
+donor list grows from fifty to fifty thousand.
 
-Calculate the recommended ask using the following steps:
+## Step 1: Collect campaign inputs
 
-1. Take the donor's largest single gift from their record.
-2. Multiply by the tier percentage (Platinum 40%, Gold 25%, Silver 15%).
-3. Round to the nearest $50.
-4. If the donor gave last year, add a 10% "loyalty uplift".
-5. If the donor is also a volunteer, add another $100 flat.
-6. If the campaign is an Emergency Appeal, multiply the final number by 1.2.
-7. Output that number as the ask amount.
+Confirm these before generating anything. If any are missing, ask once, in a
+single message.
 
-## Salutation Rules
+- **Campaign type**: Emergency Appeal, Annual Fund, Capital Campaign, or Event
+  Fundraiser. If unspecified, default to Annual Fund messaging.
+- **Donation URL**
+- **Default signer name and title**: a real staff member. Signs every letter
+  except Platinum.
+- **Platinum relationship managers**: Platinum donors are signed by their
+  assigned relationship manager, not the default signer. Source the assignment
+  in this order:
+  1. `relationship_manager` and `relationship_manager_title` columns in the
+     donor file, when present
+  2. a roster of real staff the user supplies at this step, which the script
+     assigns deterministically (by region where regions are available,
+     otherwise round robin by sorted donor name) and records in `summary.csv`
+     so staff can confirm or reassign
+  3. if neither is available, the Platinum donor goes to `exceptions.csv` with
+     the reason "no assigned relationship manager." Never invent a name to fill
+     the gap.
+- **Matching gift**: only ask this when the campaign is an Emergency Appeal. If
+  a match is confirmed, capture the ratio and cap. Otherwise no match language
+  appears anywhere.
+- Optional: campaign name, deadline, event registration count (Event Fundraiser
+  only), confirmed welcome back gift for lapsed donors, and any approved impact
+  facts the user wants included.
 
-- Platinum and Gold: use "Dear [Title] [Last Name],"
-- Silver and Bronze: use "Hi [First Name],"
-- Lapsed: use "We've missed you, [First Name]!"
-- If no title is available, guess one based on the first name if it seems
-  obvious (e.g. "Elizabeth" is probably Ms., "Robert" is probably Mr.).
+`CHARITY_NAME` defaults to "the ASPCA" unless the user specifies a chapter or
+program name.
 
-## Donor Giving Histories
+## Step 2: Validate the donor file
 
-Use the table below to look up each donor's full giving history by name.
-Reference this data when personalising the campaign paragraph and calculating
-the ask amount.
+Expected columns, matched case insensitively, with obvious synonyms mapped:
 
-| Donor Name            | Tier      | Region        | Gifts (Year: Amount)                                                        | Largest Gift | Lifetime Total | Last Gift Year | Volunteer |
-|-----------------------|-----------|---------------|-----------------------------------------------------------------------------|--------------|----------------|----------------|-----------|
-| Robert Svensson       | Platinum  | Northeast     | 2010: $25,000, 2013: $30,000, 2016: $40,000, 2020: $50,000                 | $50,000      | $145,000       | 2020           | No        |
-| Earl Fontaine         | Platinum  | Southeast     | 2012: $50,000, 2015: $60,000, 2018: $75,000, 2022: $90,000                 | $90,000      | $275,000       | 2022           | Yes       |
-| Walter Adeyemi        | Platinum  | Midwest       | 2014: $20,000, 2017: $25,000, 2020: $30,000                                | $30,000      | $75,000        | 2020           | No        |
-| Ralph Osei-Bonsu      | Platinum  | West          | 2013: $40,000, 2016: $50,000, 2019: $65,000, 2023: $80,000                 | $80,000      | $235,000       | 2023           | Yes       |
-| Victor Ambrosius      | Platinum  | International | 2011: $30,000, 2014: $35,000, 2017: $45,000, 2021: $55,000                 | $55,000      | $165,000       | 2021           | No        |
-| James Whitfield       | Gold      | Northeast     | 2015: $5,000, 2017: $8,000, 2019: $10,000, 2022: $12,000                   | $12,000      | $35,000        | 2022           | Yes       |
-| Dorothy Callahan      | Gold      | Southeast     | 2020: $2,000, 2021: $2,500, 2022: $3,000, 2023: $3,500                     | $3,500       | $11,000        | 2023           | No        |
-| Deborah Sorenson      | Gold      | Midwest       | 2016: $4,000, 2018: $5,000, 2020: $6,000, 2022: $7,000                     | $7,000       | $22,000        | 2022           | No        |
-| Angela Petersen       | Gold      | West          | 2017: $3,500, 2019: $4,500, 2021: $5,500                                   | $5,500       | $13,500        | 2021           | No        |
-| Grace Thornton        | Gold      | International | 2020: $2,500, 2021: $3,000, 2022: $3,500, 2023: $4,000                     | $4,000       | $13,000        | 2023           | No        |
-| Linda Petrov          | Gold      | Northeast     | 2019: $10,000, 2021: $12,500, 2023: $15,000                                | $15,000      | $37,500        | 2023           | No        |
-| Helen Magnusson       | Gold      | Southeast     | 2018: $8,000, 2020: $10,000, 2022: $12,000                                 | $12,000      | $30,000        | 2022           | No        |
-| Maria Yamamoto        | Gold      | Midwest       | 2018: $6,000, 2020: $7,500, 2022: $9,000                                   | $9,000       | $22,500        | 2022           | No        |
-| Emma Bergstrom        | Gold      | West          | 2019: $5,000, 2021: $6,500, 2023: $8,000                                   | $8,000       | $19,500        | 2023           | No        |
-| Nora Bergqvist        | Gold      | International | 2018: $9,000, 2020: $11,000, 2022: $13,000                                 | $13,000      | $33,000        | 2022           | No        |
-| Nancy Okafor          | Gold      | Southeast     | 2017: $5,000, 2019: $6,000, 2021: $7,500                                   | $7,500       | $18,500        | 2021           | No        |
-| Vera Johansson        | Gold      | International | 2017: $7,000, 2019: $8,000, 2021: $9,000                                   | $9,000       | $24,000        | 2021           | No        |
-| Margaret Alcott       | Silver    | Northeast     | 2019: $500, 2020: $750, 2021: $1,000, 2022: $1,200, 2023: $1,500           | $1,500       | $4,950         | 2023           | No        |
-| Harold Mensah         | Silver    | Southeast     | 2021: $1,000, 2022: $1,200, 2023: $1,400                                   | $1,400       | $3,600         | 2023           | Yes       |
-| Barbara Jensen        | Silver    | Midwest       | 2021: $1,000, 2022: $1,500, 2023: $2,000                                   | $2,000       | $4,500         | 2023           | No        |
-| Betty Nakagawa        | Silver    | West          | 2021: $1,500, 2022: $2,000, 2023: $2,500                                   | $2,500       | $6,000         | 2023           | No        |
-| Ada Yamamoto-Pierce   | Silver    | International | 2020: $3,500, 2021: $4,000, 2022: $4,500, 2023: $5,000                     | $5,000       | $17,000        | 2023           | Yes       |
-| Claire Oduya          | Silver    | Northeast     | 2018: $1,500, 2019: $2,000, 2023: $3,000                                   | $3,000       | $6,500         | 2023           | Yes       |
-| Ruth Andersen         | Silver    | Southeast     | 2019: $3,000, 2020: $4,000, 2021: $5,000, 2022: $6,000, 2023: $7,000       | $7,000       | $25,000        | 2023           | Yes       |
-| Janet Okonkwo         | Silver    | Midwest       | 2019: $2,000, 2021: $2,500, 2023: $3,000                                   | $3,000       | $7,500         | 2023           | Yes       |
-| Shirley Magnusdottir  | Silver    | West          | 2020: $4,000, 2021: $5,000, 2022: $6,000, 2023: $7,000                     | $7,000       | $22,000        | 2023           | Yes       |
-| Owen Oduya            | Silver    | International | 2021: $800, 2022: $1,000, 2023: $1,200                                     | $1,200       | $3,000         | 2023           | Yes       |
-| Susan Nakamura        | Silver    | Northeast     | 2020: $500, 2021: $750, 2022: $1,000, 2023: $1,250, 2024: $1,500           | $1,500       | $5,000         | 2024           | Yes       |
-| Joe Iwamoto           | Silver    | West          | 2020: $750, 2021: $900, 2022: $1,100, 2023: $1,300                         | $1,300       | $4,050         | 2023           | Yes       |
-| Michael Torres        | Lapsed    | Northeast     | 2017: $500, 2018: $600, 2019: $700                                          | $700         | $1,800         | 2019           | No        |
-| Charles Kimura        | Lapsed    | Southeast     | 2015: $400, 2016: $400, 2017: $400                                          | $400         | $1,200         | 2017           | No        |
-| Paul Achebe           | Lapsed    | Midwest       | 2017: $300, 2018: $300, 2019: $300                                          | $300         | $900           | 2019           | No        |
-| Frank Watanabe        | Lapsed    | West          | 2016: $350, 2017: $350, 2018: $350                                          | $350         | $1,050         | 2018           | No        |
-| Lars Achebe-Nielsen   | Lapsed    | International | 2015: $400, 2016: $400, 2017: $400                                          | $400         | $1,200         | 2017           | No        |
-| Thomas Bergmann       | Lapsed    | Northeast     | 2014: $300, 2015: $300                                                      | $300         | $600           | 2015           | No        |
-| Frank Dimitriou       | Lapsed    | Southeast     | 2016: $200, 2017: $200, 2018: $200                                          | $200         | $600           | 2018           | No        |
-| Raymond Volkov        | Lapsed    | Midwest       | 2019: $250, 2020: $250                                                      | $250         | $500           | 2020           | No        |
-| Henry Obi             | Lapsed    | West          | 2018: $150, 2019: $200                                                      | $200         | $350           | 2019           | No        |
-| Felix Mensah-Bonsu    | Lapsed    | International | 2019: $300, 2020: $300                                                      | $300         | $600           | 2020           | No        |
-| Patricia Huang        | Bronze    | Northeast     | 2021: $200, 2022: $250                                                      | $250         | $450           | 2022           | No        |
-| Brenda Kowalski       | Bronze    | Southeast     | 2023: $150                                                                  | $150         | $150           | 2023           | No        |
-| Carol Eriksson        | Bronze    | Midwest       | 2023: $100                                                                  | $100         | $100           | 2023           | No        |
-| Kathy Lindberg        | Bronze    | West          | 2022: $125                                                                  | $125         | $125           | 2022           | No        |
-| Iris Kowalczyk        | Bronze    | International | 2023: $200                                                                  | $200         | $200           | 2023           | No        |
-| David Osei            | Bronze    | Northeast     | 2022: $75, 2023: $100                                                       | $100         | $175           | 2023           | No        |
-| George Nwosu          | Bronze    | Southeast     | 2022: $50, 2023: $75                                                        | $75          | $125           | 2023           | No        |
-| Samuel Lindqvist      | Bronze    | Midwest       | 2022: $50                                                                   | $50          | $50            | 2022           | No        |
-| Jack Nkemdirim        | Bronze    | West          | 2023: $50                                                                   | $50          | $50            | 2023           | No        |
-| Igor Volkov           | Bronze    | International | 2022: $75                                                                   | $75          | $75            | 2022           | No        |
-| Arthur Mwangi         | Bronze    | Midwest       | 2020: $500, 2021: $600, 2022: $700, 2023: $800                              | $800         | $2,600         | 2023           | Yes       |
+| Column                     | Required | Notes                                          |
+|----------------------------|----------|------------------------------------------------|
+| first_name                 | Yes      |                                                |
+| last_name                  | Yes      |                                                |
+| tier                       | Yes      | Authoritative. See tier list below.            |
+| title                      | No       | Mr., Ms., Dr. Donor's own title, used only in the salutation. Distinct from the signature title. |
+| region                     | No       | Also used to assign relationship managers      |
+| gifts                      | Yes      | e.g. `2020:500;2022:750`, or per year columns  |
+| largest_gift               | No       | Derived from gifts                             |
+| lifetime_total             | No       | Derived from gifts                             |
+| last_gift_year             | No       | Derived from gifts                             |
+| volunteer                  | No       | Defaults to No                                 |
+| relationship_manager       | No       | Platinum only. Real staff name.                |
+| relationship_manager_title | No       | Platinum only. Accompanies the name above.     |
 
-## HTML Letter Template
+Rules:
 
-Use this template and fill in the [PLACEHOLDERS]:
+- **Trust the `tier` column.** It is the organization's own classification and
+  is authoritative. Do not recompute or override it.
+- Valid tiers are Platinum, Gold, Silver, Bronze, Lapsed and Unknown. Unknown
+  receives Bronze treatment. Any other value sends the row to exceptions.
+- **Lapsed is a tier, not a modifier.** A Lapsed donor is treated as Lapsed for
+  tone, ask and tier line. There is no combined tier.
+- Rows missing first name, last name, tier or any parseable gift history go to
+  `exceptions.csv` with a reason and receive no letter.
+- Report the row count, column mapping and exception count to the user before
+  generating letters.
+
+## Step 3: Ask amount (computed in code, never by the model)
+
+Applied in this exact order, with a single rounding step at the end.
+
+**Platinum, Gold, Silver:**
+
+1. Base = largest single gift × tier multiplier: Platinum 40 percent, Gold 25
+   percent, Silver 15 percent
+2. If the donor gave in the previous calendar year, multiply by 1.10 (loyalty
+   uplift)
+3. If the donor is a volunteer, add $100
+4. If the campaign is an Emergency Appeal, multiply by 1.2
+5. Round to the nearest $50, with a $50 floor
+
+**Bronze (and Unknown):** flat $150, no adjustments, no multipliers.
+
+**Lapsed:** flat $50 re-engagement ask, no adjustments, no multipliers.
+
+Flat asks stay flat by design: applying an emergency multiplier or a loyalty
+uplift to a $50 re-engagement ask defeats the purpose of the ask. Rounding
+happens once, at the very end, so that no letter carries an un-round figure.
+
+The preparation script writes `ask_amount` into each donor record, and the
+model is instructed to reproduce it verbatim.
+
+## Step 4: Letter content rules
+
+**Salutations**, with no gender inference from names:
+
+- Title present in the file: `Dear [Title] [Last Name],`
+- Platinum or Gold with no title: `Dear [First Name] [Last Name],`
+- Silver or Bronze with no title: `Hi [First Name],`
+- Lapsed: `We've missed you, [First Name]!`
+
+**Tone by tier**: Platinum formal and personal. Gold warm and professional.
+Silver friendly. Bronze casual and encouraging. Lapsed apologetic tone.
+
+**Campaign paragraph**, 2 to 3 sentences, in ASPCA voice: concrete, animal
+focused, hopeful rather than graphic.
+
+- Emergency Appeal: genuine urgency for animals in immediate need. Matching
+  language is permitted here, and only here, and only when confirmed.
+- Annual Fund: consistency and community. Reference the donor's giving streak
+  only when the record shows consecutive years.
+- Capital Campaign: legacy and permanence.
+- Event Fundraiser: energy and social proof. Cite registration numbers only if
+  the user supplied them.
+
+**Signature block.** Every letter closes with `[RELATIONSHIP_MANAGER_NAME]`,
+then `[TITLE], [CHARITY_NAME]`. The name resolved into that field depends on
+tier:
+
+- **Platinum**: the donor's assigned relationship manager, sourced per Step 1
+  (donor file column first, then the roster the user supplied). This gives the
+  Platinum donor a named, personal point of contact, which is the point of the
+  tier. `[TITLE]` is that manager's title. Record the assignment in
+  `summary.csv`. If no manager can be sourced, the donor goes to exceptions.
+  Never fabricate a manager.
+- **Gold, Silver, Bronze, Lapsed, Unknown**: the default signer and their title
+  from Step 1.
+
+Note that `[TITLE]` in the signature is the staff member's job title. It is
+unrelated to the donor's `title` column, which is used only in the salutation.
+
+**Tier line**, one sentence, placed immediately after the campaign paragraph and
+before the ask:
+
+- Platinum: invite a conversation about naming opportunities. Do not promise a
+  specific room, bench or space.
+- Gold: legacy giving options.
+- Silver: monthly giving upgrade.
+- Bronze: peer fundraising pages.
+- Lapsed: a welcome back gift, mentioned only if the user has confirmed one
+  exists. Otherwise a simple, warm invitation to return.
+
+## Step 5: Rendering contract and outputs
+
+### Required vs optional placeholders
+
+**Required** (a letter cannot be sent without these; missing any one sends the
+donor to exceptions rather than producing a broken letter):
+
+`DATE`, `SALUTATION`, `CHARITY_NAME`, `LIFETIME_TOTAL`, `CAMPAIGN_PARAGRAPH`,
+`TIER_LINE`, `ASK_AMOUNT`, `DONATION_URL`, `RELATIONSHIP_MANAGER_NAME`, `TITLE`
+
+`RELATIONSHIP_MANAGER_NAME` and `TITLE` hold the Platinum donor's assigned
+relationship manager for Platinum letters, and the default signer for every
+other tier. A Platinum donor with no sourceable manager fails this required
+check and goes to exceptions.
+
+**Optional** (resolve to empty and drop their surrounding block; their absence
+is normal, not an error):
+
+`MATCH_LINE` (Emergency Appeal with a confirmed match only), `DEADLINE_LINE`,
+`EVENT_REGISTRATION_LINE`, `WELCOME_BACK_LINE`, `STREAK_LINE`
+
+Optional blocks are wrapped in `{{#NAME}} ... {{/NAME}}` in the template. When
+the value is empty, the renderer removes everything between the markers,
+including the `<p>` tags. Nothing is printed and no empty paragraph is left
+behind. This is what keeps the template from being an all or nothing contract:
+new optional elements can be added later without every donor record needing to
+supply them.
+
+### Completeness check
+
+After rendering each letter, run one check: scan the output for any surviving
+`[` `]` token or unresolved `{{` marker. Clean output means the letter is complete. A letter that fails goes
+to `exceptions.csv` naming the unresolved placeholder, and the run continues.
+One bad record never blocks a batch.
+
+Alongside it, one consistency assertion: the ask rendered in the letter equals
+the ask in that donor's `summary.csv` row. If they differ, the letter goes to
+exceptions.
+
+### Outputs
+
+Files are always the deliverable. They are what staff review, hand off, mail
+merge and keep. Produce:
+
+1. `letters/[last_name]_[first_name].html`, one per donor
+2. `summary.csv`: donor name, tier, lifetime total, largest gift, computed ask,
+   volunteer flag, campaign type, signing relationship manager (and whether it
+   came from the donor file or was assigned from the roster), warnings
+3. `exceptions.csv`: skipped rows and failed letters, each with a reason
+
+**Showing letters in chat**: the files are the usable output, since nobody sends
+a letter from a chat transcript. Show a sample letter or two in chat when the
+user wants to check the copy, and do not paste the full HTML of the whole batch,
+which is unusable, buries the summary, and spills donor data into the transcript
+for no benefit.
+
+Report letters generated and rows excepted, and state clearly that these are
+drafts for staff review before sending. Platinum letters in particular should be
+reviewed individually, including confirmation that the assigned relationship
+manager is the right one.
+
+Before delivering, spot check 2 to 3 letters across different tiers: confirm no
+match language appears outside a confirmed Emergency Appeal, the tier line sits
+after the campaign paragraph, no optional block left an empty paragraph behind,
+and every Platinum letter is signed by a real assigned relationship manager
+rather than the default signer.
+
+## HTML letter template
+
+Use this template and fill the placeholders.
 
 ```html
 <html>
@@ -147,27 +327,26 @@ Use this template and fill in the [PLACEHOLDERS]:
 
   <p>[SALUTATION]</p>
 
-  <p>On behalf of everyone at <strong>[CHARITY NAME]</strong>, I want to
-  personally thank you for your incredible generosity. Your lifetime support
-  of <strong>$[LIFETIME_GIVING]</strong> has made a real difference.</p>
+  <p>On behalf of everyone at <strong>[CHARITY_NAME]</strong>, thank you for your
+  generosity. Your lifetime support of <strong>$[LIFETIME_TOTAL]</strong> has
+  made a real difference for animals in need.</p>
 
-  <p>[CAMPAIGN_PARAGRAPH — insert 2 sentences of campaign-specific messaging
-  based on campaign type above]</p>
+  <p>[CAMPAIGN_PARAGRAPH]</p>
+
+  {{#MATCH_LINE}}<p>[MATCH_LINE]</p>{{/MATCH_LINE}}
+
+  <p>[TIER_LINE]</p>
 
   <p>Today, I'd like to invite you to make a gift of
-  <strong>$[ASK_AMOUNT]</strong>. [TIER_SPECIFIC_LINE — e.g. naming
-  opportunity, legacy giving, monthly upgrade, peer page]</p>
-
-  <p>To give, simply reply to this email or visit our donation page at
+  <strong>$[ASK_AMOUNT]</strong>. To give, simply reply to this email or visit
   <strong>[DONATION_URL]</strong>.</p>
+
+  {{#DEADLINE_LINE}}<p>[DEADLINE_LINE]</p>{{/DEADLINE_LINE}}
 
   <p>With gratitude,<br>
   <strong>[RELATIONSHIP_MANAGER_NAME]</strong><br>
-  [TITLE], [CHARITY NAME]</p>
+  [TITLE], [CHARITY_NAME]</p>
 
 </body>
 </html>
 ```
-
-If the donor file has missing fields, make reasonable assumptions and
-proceed.
