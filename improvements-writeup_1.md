@@ -121,7 +121,7 @@ certain size the skill simply stops fitting.
 
 **Why the uploaded file is the better mechanism.** It is read by code, not by
 the model, so it never enters the context window and a large file costs no more
-context than a small one. It carries whatever the (Customer Relationship Management)CRM exported this morning, so
+context than a small one. It carries whatever the (Customer Relationship Management)CRM exported, so
 the data is current by construction rather than by someone remembering to edit
 the skill. And the donor records stay in a data file the organisation controls,
 instead of being copied into an instructions file that gets shared and loaded on
