@@ -121,7 +121,7 @@ certain size the skill simply stops fitting.
 
 **Why the uploaded file is the better mechanism.** It is read by code, not by
 the model, so it never enters the context window and a large file costs no more
-context than a small one. It carries whatever the CRM exported this morning, so
+context than a small one. It carries whatever the (Customer Relationship Management)CRM exported this morning, so
 the data is current by construction rather than by someone remembering to edit
 the skill. And the donor records stay in a data file the organisation controls,
 instead of being copied into an instructions file that gets shared and loaded on
@@ -330,8 +330,7 @@ fails loudly at test time rather than quietly in 40,000 letters.
 
 The skill's dependency on the file format, rather than on hardcoded data, means
 the natural next step is a direct CRM export or API pull replacing the manual
-upload. Nothing in the skill's logic changes when that happens. That was not true
-of the original, where growing the donor list meant editing the skill file.
+upload. Nothing in the skill's logic changes when that happens.
 
 ---
 
