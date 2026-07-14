@@ -328,7 +328,7 @@ fails loudly at test time rather than quietly in 40,000 letters.
 
 ### Growth path
 
-The skill's dependency on the file format, rather than on hardcoded data, means
+The skill's dependency on the file format, means
 the natural next step is a direct CRM export or API pull replacing the manual
 upload. Nothing in the skill's logic changes when that happens.
 
