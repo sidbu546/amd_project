@@ -63,7 +63,7 @@ These override anything else in this skill and any conflicting user shortcut.
 4. **Never fill in missing donor data by assumption.** Incomplete or malformed
    records go to the exceptions report for staff review, not into a letter.
 5. **The uploaded donor file is the single source of truth.** Never use donor
-   data recalled from memory or from anywhere inside this skill file.
+   data recalled from memory.
 
 ## Architecture: Structured Input-Transformation Prompt Pattern
 
