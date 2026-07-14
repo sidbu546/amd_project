@@ -205,7 +205,7 @@ model is instructed to reproduce it verbatim.
 - Title present in the file: `Dear [Title] [Last Name],`
 - Platinum or Gold with no title: `Dear [First Name] [Last Name],`
 - Silver or Bronze with no title: `Hi [First Name],`
-- Lapsed: `We've missed you, [First Name].`
+- Lapsed: `We've missed you, [First Name]!`
 
 **Tone by tier**: Platinum formal and personal. Gold warm and professional.
 Silver friendly. Bronze casual and encouraging. Lapsed apologetic tone.
