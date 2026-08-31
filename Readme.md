@@ -1,7 +1,6 @@
 # Ajaia AI Strategist Assessment — Westbrook Health Partners
 
-**Candidate:** [YOUR NAME]
-**Video submission folder:** [PASTE SHARED FOLDER LINK HERE — anyone with the link can view]
+**Candidate:** Siddhanth Kalyanaraman
 **Prepared by an Ajaia AI Strategist — https://ajaia.ai**
 
 ---
@@ -461,27 +460,21 @@ Every judgement call, and specifically these four.
 
 **Which number to commit to.** Committing to 20 percent would have been the easy, agreeable output. Showing the arithmetic to 13–15 percent and naming the missing 5–7 points is the harder one, and it is the one a CEO who has already been pitched three times will believe. That is a judgement about credibility, not about data.
 
-**The failure modes in section 4.7.** Asked for risks, a model produces a list that reads well and warns you about nothing in particular. The three I kept are the ones I expect: the silent input gap on the eight clinicians, payer portal drift, and — the one that actually kills projects like this — the auth team quietly keeping the spreadsheet because the notes column still has no home. That last one became acceptance criterion 9, which is the criterion most likely to get dropped in a planning meeting and the one I most want kept.
+**The failure modes in section 4.7.** Asked for risks, a model produces a list that reads well and warns you about nothing in particular. The three I kept are the ones I expect: the silent input gap on the eight clinicians, payer portal drift, and — the one that actually kills projects like this — the auth team quietly keeping the spreadsheet because the notes column still has no home. That last one became acceptance criterion 9, the criterion most likely to get dropped in a planning meeting and the one I most want kept.
 
-### One specific thing I checked, corrected, and rejected
+**And the tooling decision itself.** On a real version of this engagement, nothing goes into any AI tool that lacks a signed business associate agreement. That is the whole substance of Alicia's note, and it is why a shadow-IT and BAA inventory sits in week one of the plan rather than in a compliance appendix. Every artifact in this pack is fictional and none of it carried protected health information. On the real Westbrook that constraint governs tool selection from day one, and it does not bend for convenience.
 
-**The records-request numbers, and it changed the recommendation.**
+### One specific thing I checked, corrected, and rejected from an AI output
 
-Marcus reports 1,840 requests last quarter at a 4.2-hour average turnaround (Artifact C), and Dana describes it as high-volume, low-value grind work. The first draft I got back treated that as given and proposed request triage and automated routing — a plausible-sounding AI project built on an average nobody had opened.
+**The output:** a drafted triage entry for records requests. It opened by stating that turnaround averages 4.2 hours per Marcus, described the median as "roughly nine minutes," and recommended automated request triage and intelligent routing to bring the tail in line. It read well. It was wrong in three separate ways, and I only found them because the underlying dataset was small enough to add up by hand.
 
-I recomputed Artifact E by hand rather than trusting a summary. Twelve requests: ten closed between 5 and 13 minutes, **median exactly 10 minutes**. Two closed at 3 days 4 hours and 1 day 18 hours. Those two outliers are 7,080 of the 7,168 total minutes in the sample — **98.8 percent of the elapsed time sits in 17 percent of the requests.**
+**The check:** I recomputed all twelve rows of Artifact E myself rather than accepting the model's summary of them. Ten requests closed between 5 and 13 minutes. Two closed at 3 days 4 hours and 1 day 18 hours. Total elapsed across the sample is 7,168 minutes, of which those two hold 7,080 — **98.8 percent of the elapsed time sits in 17 percent of the requests.**
 
-Three consequences, in order of how much they changed the submission.
+**What I rejected.** The automated routing project, entirely. There is no general slowness problem to route around. There is a tail problem, and the model had missed it because it had accepted Dana's framing of records requests as high-volume grind work and then reached for the intervention that framing implies. The operations lead names the real cause on the log itself — wrong inbox, or a trip back to the clinician — and Rick names both the fix and the reason it has not happened: nobody owns the inbox. That is one inbox, one named owner, one aging alert, and it costs an afternoon. It is now item #4 in the triage, tagged process fix, not AI. This is the correction that changed the submission.
 
-I **rejected** the automation project. There is no general slowness problem to automate. There is a tail problem, and the operations lead names the cause on the log itself: wrong inbox, or a trip back to the clinician. Rick names the fix and the reason it has not happened — "we keep saying we will make one inbox and then nobody owns it." That is one inbox, one named owner, one aging alert. It costs an afternoon, and it is item #4 in the triage tagged process fix, not AI.
+**What I corrected.** The median. The model gave "roughly nine minutes," which is an estimate presented in the register of a calculation. Sorted, the middle pair of the twelve is 9 and 11, so the median is exactly 10. The gap is trivial and the habit is not: I was about to put a number on a slide, in front of a CFO, in the course of accusing that CFO's figure of being loose.
 
-I **corrected** my own draft twice. I originally wrote the median as roughly 9 minutes by eye; recomputing gave exactly 10. Small, but it is a number that would have appeared on a slide, and being loose about the one figure I am using to accuse someone else of being loose is not a position I want to defend in front of a CFO.
-
-And I **flagged** something I could not resolve. The sample's own mean is 9.96 hours, not 4.2. Either the twelve requests are unrepresentative of the quarter, or the log measures business hours where my arithmetic measures wall clock. I do not know which, so it is question 10 in the information gaps rather than a finding. It is also the item I am most confident about overall, which is exactly why I wanted it checked.
-
-### What I would not use AI for on a real version of this engagement
-
-Anything that puts patient information into a tool without a signed business associate agreement. That is the whole substance of Alicia's note, and it is why a shadow-IT and BAA inventory sits in week one of the plan rather than in a compliance appendix. Every artifact in this pack is fictional and none of it carried protected health information. On the real Westbrook, that constraint governs tool selection from day one and it does not bend for convenience.
+**What it never flagged at all, and this is the one that concerns me.** The sample's own mean is 9.96 hours, not 4.2. The model reproduced Marcus's figure and then, two sentences later, summarised a log that contradicts it, without noticing the two were in the same paragraph. I cannot resolve which is right — the twelve requests may be unrepresentative, or the log may measure business hours where my arithmetic measures wall clock — so it is question 10 in the information gaps rather than a finding.
 
 ---
 
